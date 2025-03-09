@@ -18,7 +18,7 @@ Ensure you have the following installed:
 
 ### Clone the Repository
 ```bash
-git clone https://github.com/your-username/telegram-image-generator-bot.git
+git clone https://github.com/Somya2010/T21-Bot
 cd telegram-image-generator-bot
 ```
 
