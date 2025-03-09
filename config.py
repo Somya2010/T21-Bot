@@ -1,3 +1,3 @@
 TELEGRAM_BOT_TOKEN = "7889241519:AAEbfungJzxXURbjwR5IPYIe6lvtJFjhsWg"
-SEGMIND_API_KEY = "SG_c58ac0e593d79c0f"
-SEGMIND_ENDPOINT = "https://api.segmind.com/v1/stable-diffusion/text-to-image"
+OPENAI_API_KEY = "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"
+
