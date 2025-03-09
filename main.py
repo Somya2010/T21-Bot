@@ -1,64 +1,223 @@
-import os
+import tempfile
+import time
 import requests
-import telebot
-from io import BytesIO
-from config import TELEGRAM_BOT_TOKEN, SEGMIND_API_KEY, SEGMIND_ENDPOINT
+import telepot
+from openai import OpenAI
+from telepot.loop import MessageLoop
+from telepot.namedtuple import InlineKeyboardButton, InlineKeyboardMarkup
+from config import OPENAI_API_KEY, TELEGRAM_BOT_TOKEN  # Import from config.py
 
-# Initialize bot
-bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+# Initialize OpenAI client
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-def generate_image(prompt):
-    headers = {
-        "Authorization": f"Bearer {SEGMIND_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "prompt": prompt,
-        "width": 512,
-        "height": 512
-    }
-    
-    response = requests.post(SEGMIND_ENDPOINT, json=data, headers=headers)
-    
-    print("Response Status Code:", response.status_code)  # Debugging
-    print("Response Text:", response.text)  # Debugging
+# Initialize Telegram Bot
+bot = telepot.Bot(TELEGRAM_BOT_TOKEN)
 
-    if response.status_code == 200:
-        try:
-            response_json = response.json()
-            if "image_url" in response_json:
-                image_url = response_json["image_url"]
-                image_response = requests.get(image_url)
-                return image_response.content
-            elif "image_base64" in response_json:
-                import base64
-                return base64.b64decode(response_json["image_base64"])
-        except Exception as e:
-            print("Error parsing response:", e)
-    
-    return None  # If request fails
+# Substitua 'YOUR_TELEGRAM_TOKEN' pelo token do seu bot
+TOKEN = "7889241519:AAEbfungJzxXURbjwR5IPYIe6lvtJFjhsWg"
+bot = telepot.Bot(TOKEN)
 
-@bot.message_handler(commands=['start', 'help'])
-def send_welcome(message):
-    bot.reply_to(message, "Send a text prompt using /gen command to generate an image!\n\nExample:\n/gen A futuristic city at night")
+# Dictionary to maintain user state
+user_state = {}
 
-@bot.message_handler(commands=['gen'])
-def handle_generate(message):
-    prompt = message.text.replace('/gen', '').strip()
-    
-    if not prompt:
-        bot.reply_to(message, "Please provide a prompt after the /gen command.\n\nExample:\n/gen A futuristic city at night")
-        return
-    
-    bot.reply_to(message, "Generating image, please wait...")
-    image_bytes = generate_image(prompt)
-    
-    if image_bytes:
-        bot.send_photo(message.chat.id, BytesIO(image_bytes), caption="Here is your generated image!")
-    else:
-        bot.reply_to(message, "Failed to generate image. Please try again later.")
 
-# Run bot
-if __name__ == "__main__":
-    print("Bot is running...")
-    bot.polling()
+# Function to create size selection keyboard
+def size_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="1024x1024", callback_data="1024x1024")],
+            [InlineKeyboardButton(text="1024x1792", callback_data="1024x1792")],
+            [InlineKeyboardButton(text="1792x1024", callback_data="1792x1024")],
+        ]
+    )
+    return keyboard
+
+
+# Function to create quality selection keyboard
+def quality_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="HD", callback_data="hd")],
+            [InlineKeyboardButton(text="Standard", callback_data="standard")],
+        ]
+    )
+    return keyboard
+
+
+# Function to handle chat messages
+def on_chat_message(msg):
+    content_type, chat_type, chat_id = telepot.glance(msg)
+    if content_type == "text":
+        if msg["text"] == "/start":
+            bot.sendMessage(
+                chat_id,
+                "*Dear user, please provide a description for the image you wish to generate. Include relevant details for the best result.*",
+                parse_mode="markdown",
+            )
+        else:
+            user_state[chat_id] = {"prompt": msg["text"]}
+            bot.sendMessage(
+                chat_id, "Choose the size of the image:", reply_markup=size_keyboard()
+            )
+
+
+def post_generation_keyboard():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Generate another image with the same text",
+                    callback_data="regenerate_same",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Generate image with new text", callback_data="generate_new"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="Generate with same text and new options",
+                    callback_data="regenerate_options",
+                )
+            ],
+        ]
+    )
+    return keyboard
+
+
+# Function to handle callback queries
+def on_callback_query(msg):
+    query_id, from_id, query_data = telepot.glance(msg, flavor="callback_query")
+    bot.answerCallbackQuery(query_id)
+
+    chat_id = msg["message"]["chat"]["id"]
+    message_id = msg["message"]["message_id"]
+
+    if chat_id not in user_state:
+        user_state[chat_id] = {}
+
+    if "size" not in user_state[chat_id]:
+        # Size selection
+        user_state[chat_id]["size"] = query_data
+        bot.sendMessage(
+            chat_id, "Choose the quality of the image:", reply_markup=quality_keyboard()
+        )
+    elif (
+        "quality" not in user_state[chat_id]
+        and "awaiting_new_options" not in user_state[chat_id]
+    ):
+        # Quality selection
+        user_state[chat_id]["quality"] = query_data
+
+        # Generating the image
+        bot.sendMessage(
+            chat_id,
+            "*Your request is being processed. Please wait...*",
+            parse_mode="markdown",
+        )
+        generate_and_send_image(chat_id, user_state[chat_id])
+
+        # Present options after sending the image
+        bot.sendMessage(
+            chat_id,
+            "What would you like to do now?",
+            reply_markup=post_generation_keyboard(),
+        )
+
+    elif query_data == "regenerate_same":
+        # Regenerate image with the same text
+        bot.sendMessage(
+            chat_id,
+            "*Generating another image with the same text. Please wait...*",
+            parse_mode="markdown",
+        )
+        generate_and_send_image(chat_id, user_state[chat_id])
+        bot.sendMessage(
+            chat_id,
+            "What would you like to do now?",
+            reply_markup=post_generation_keyboard(),
+        )
+
+    elif query_data == "generate_new":
+        # Request a new prompt
+        bot.sendMessage(
+            chat_id,
+            "*Please provide a description for the image you wish to generate. Include relevant details for the best result.*",
+            parse_mode="markdown",
+        )
+        user_state[chat_id] = {"prompt": None}  # Reset for a new prompt
+
+    elif query_data == "regenerate_options":
+        # The user wants to regenerate the image with the same text, but choose new options
+        bot.sendMessage(
+            chat_id,
+            "Choose the new size for the image:",
+            reply_markup=size_keyboard(),
+        )
+        user_state[chat_id] = {
+            "prompt": user_state[chat_id]["prompt"],
+            "awaiting_new_options": True,
+        }
+
+    elif "awaiting_new_options" in user_state[chat_id]:
+        if "size" not in user_state[chat_id]:
+            # New size selection
+            user_state[chat_id]["size"] = query_data
+            bot.sendMessage(
+                chat_id,
+                "Choose the new quality of the image:",
+                reply_markup=quality_keyboard(),
+            )
+        else:
+            # New quality selection
+            user_state[chat_id]["quality"] = query_data
+            bot.sendMessage(
+                chat_id,
+                "Generating image with the same text and new options. Please wait...",
+                parse_mode="markdown",
+            )
+            generate_and_send_image(chat_id, user_state[chat_id])
+            bot.sendMessage(
+                chat_id,
+                "What would you like to do now?",
+                reply_markup=post_generation_keyboard(),
+            )
+            del user_state[chat_id]["awaiting_new_options"]
+
+
+def generate_and_send_image(chat_id, user_data):
+    # Generating the image with the DALL-E API
+    response = client.images.generate(
+        model="dall-e-3",
+        prompt=user_data["prompt"],
+        n=1,
+        size=user_data["size"],
+        quality=user_data["quality"],
+    )
+
+    # Get the URL of the generated image
+    image_url = response.data[0].url
+
+    # Download the image content
+    image_content = requests.get(image_url).content
+
+    # Saving the image content in a temporary file
+    with tempfile.NamedTemporaryFile(delete=False) as temp_image:
+        temp_image.write(image_content)
+        temp_image.flush()
+
+        # Send the photo to the user using the file path
+        bot.sendPhoto(chat_id, photo=open(temp_image.name, "rb"))
+
+
+# Message loop setup
+MessageLoop(
+    bot, {"chat": on_chat_message, "callback_query": on_callback_query}
+).run_as_thread()
+
+print("Running...")
+
+# Keep the program running
+while 1:
+    time.sleep(10)
