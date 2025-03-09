@@ -1,56 +1,55 @@
-# Telegram Image Generator Bot
+# Telegram Bot
 
-This Telegram bot generates AI-generated images based on user prompts using the Segmind API.
+This bot allows users to generate images using OpenAI's DALL-E model directly from Telegram. Users can provide a prompt, select image size and quality, and receive the generated image within the chat.
 
 ## Features
-- Accepts text prompts via Telegram command `/gen`
-- Uses Segmind API to generate images
-- Sends generated images back to users
-- Supports basic commands like `/start` and `/help`
+- Accepts text prompts for image generation
+- Allows users to select image size and quality
+- Supports regeneration of images with the same or different parameters
+- Interactive Telegram bot with inline buttons
 
-## Installation & Setup
+## Installation
 
-### Prerequisites
-Ensure you have the following installed:
-- Python 3.x
-- A Telegram bot token from [BotFather](https://t.me/BotFather)
-- A Segmind API key from [Segmind](https://segmind.com)
+Ensure you have Python installed (version 3.8+ recommended). Then, install the required dependencies:
 
-### Clone the Repository
 ```bash
-git clone https://github.com/Somya2010/T21-Bot
-cd telegram-image-generator-bot
+pip install telepot requests openai
 ```
 
-### Install Dependencies
-```bash
-pip install telebot==3.8.0 requests==2.26.0
-```
+## Configuration
 
-### Configuration
 Create a `config.py` file and add your API keys:
+
 ```python
+# config.py
+OPENAI_API_KEY = "your-openai-api-key"
 TELEGRAM_BOT_TOKEN = "your-telegram-bot-token"
-SEGMIND_API_KEY = "your-segmind-api-key"
-SEGMIND_ENDPOINT = "https://api.segmind.com/v1/stable-diffusion/text-to-image"
 ```
 
-### Running the Bot
+## Usage
+
+Run the bot script:
+
 ```bash
 python main.py
 ```
 
-## Usage
-- Start the bot by sending `/start`
-- Generate an image using `/gen <your prompt>`
-  
-  Example:
-  ```
-  /gen A futuristic city at night
-  ```
+## How It Works
+1. Users send a prompt to the bot.
+2. The bot asks for size and quality preferences.
+3. The bot generates an image using OpenAI's API.
+4. The bot sends the generated image back to the user.
+5. Users can choose to regenerate the image or start a new request.
+
+## Dependencies
+- `telepot` for Telegram bot functionality
+- `requests` for making API calls
+- `openai` for interfacing with DALL-E
 
 ## License
 This project is licensed under the MIT License.
 
+---
 
+Feel free to contribute or customize as needed!
 
