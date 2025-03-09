@@ -13,13 +13,8 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # Initialize Telegram Bot
 bot = telepot.Bot(TELEGRAM_BOT_TOKEN)
 
-# Substitua 'YOUR_TELEGRAM_TOKEN' pelo token do seu bot
-TOKEN = "7889241519:AAEbfungJzxXURbjwR5IPYIe6lvtJFjhsWg"
-bot = telepot.Bot(TOKEN)
-
 # Dictionary to maintain user state
 user_state = {}
-
 
 # Function to create size selection keyboard
 def size_keyboard():
@@ -32,7 +27,6 @@ def size_keyboard():
     )
     return keyboard
 
-
 # Function to create quality selection keyboard
 def quality_keyboard():
     keyboard = InlineKeyboardMarkup(
@@ -42,7 +36,6 @@ def quality_keyboard():
         ]
     )
     return keyboard
-
 
 # Function to handle chat messages
 def on_chat_message(msg):
@@ -60,7 +53,7 @@ def on_chat_message(msg):
                 chat_id, "Choose the size of the image:", reply_markup=size_keyboard()
             )
 
-
+# Function to generate post-generation keyboard
 def post_generation_keyboard():
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -84,7 +77,6 @@ def post_generation_keyboard():
         ]
     )
     return keyboard
-
 
 # Function to handle callback queries
 def on_callback_query(msg):
@@ -185,7 +177,7 @@ def on_callback_query(msg):
             )
             del user_state[chat_id]["awaiting_new_options"]
 
-
+# Function to generate and send image
 def generate_and_send_image(chat_id, user_data):
     # Generating the image with the DALL-E API
     response = client.images.generate(
@@ -210,13 +202,12 @@ def generate_and_send_image(chat_id, user_data):
         # Send the photo to the user using the file path
         bot.sendPhoto(chat_id, photo=open(temp_image.name, "rb"))
 
-
 # Message loop setup
 MessageLoop(
     bot, {"chat": on_chat_message, "callback_query": on_callback_query}
 ).run_as_thread()
 
-print("Running...")
+print("Bot is running...")
 
 # Keep the program running
 while 1:
